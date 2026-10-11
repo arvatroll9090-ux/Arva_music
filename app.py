@@ -64,20 +64,51 @@ def db():
 
 def init_db():
     connection = db()
+    try:
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS songs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                audio_file TEXT NOT NULL,
+                cover_file TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    connection.execute("""
-        CREATE TABLE IF NOT EXISTS songs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            artist TEXT NOT NULL,
-            audio_file TEXT NOT NULL,
-            cover_file TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(songs)").fetchall()
+        }
+        for name in ("views", "likes", "downloads"):
+            if name not in columns:
+                connection.execute(
+                    f"ALTER TABLE songs ADD COLUMN {name} INTEGER NOT NULL DEFAULT 0"
+                )
 
-    connection.commit()
-    connection.close()
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS song_likes (
+                user_id INTEGER NOT NULL,
+                song_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, song_id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (song_id) REFERENCES songs(id)
+            )
+        """)
+
+        connection.commit()
+    finally:
+        connection.close()
 
 
 init_db()
